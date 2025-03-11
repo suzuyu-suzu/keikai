@@ -1,17 +1,15 @@
-//
-//  KeikaiApp.swift
-//  Keikai
-//
-//  Created by yutosuzuki on 2025/03/11.
-//
-
 import SwiftUI
 
 @main
 struct KeikaiApp: App {
+    @StateObject private var dataStore = DataStore()
+    @StateObject private var healthKitManager = HealthKitManager()
+    
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            MainTabView()
+                .environmentObject(dataStore)
+                .environmentObject(healthKitManager)
         }
     }
 }
