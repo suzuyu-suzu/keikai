@@ -48,11 +48,11 @@ struct ActivityHistoryView: View {
     
     private func lastWeekActivities() -> [Activity] {
         let calendar = Calendar.current
-            let thisWeekStart = dataStore.getWeekStart()
-            let lastWeekStart = calendar.date(byAdding: .day, value: -7, to: thisWeekStart)!
-            let lastWeekEnd = calendar.date(byAdding: .day, value: -1, to: thisWeekStart)!
-            
-            return dataStore.activities.filter { $0.date >= lastWeekStart && $0.date <= lastWeekEnd }
+        let thisWeekStart = dataStore.getWeekStart()
+        let lastWeekStart = calendar.date(byAdding: .day, value: -7, to: thisWeekStart)!
+        let lastWeekEnd = dataStore.getWeekEnd(for: lastWeekStart)
+        
+        return dataStore.activities.filter { $0.date >= lastWeekStart && $0.date <= lastWeekEnd }
     }
     
     private func deleteActivity(at offsets: IndexSet) {

@@ -22,6 +22,7 @@ class DataStore: ObservableObject {
             preferredActivityTypes: [.walking, .running, .squats],
             notificationsEnabled: true,
             weeklyReportEnabled: true,
+            weekStartsOnMonday: true,
             homeCircleTypes: [.distance, .steps, .overall, .squats]  // デフォルト順序
         )
         
@@ -218,22 +219,22 @@ class DataStore: ObservableObject {
     
     // 週の開始日を計算するヘルパーメソッド
     func getWeekStart(for date: Date = Date()) -> Date {
-        let calendar = Calendar.current
+        var calendar = Calendar.current
         
-        if userProfile.weekStartsOnMonday {
-            // 月曜始まり
-            let components = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: date)
-            return calendar.date(from: components)!
-        } else {
-            // 日曜始まり
-            let weekday = calendar.component(.weekday, from: date)
-            let daysToSubtract = weekday - 1
-            return calendar.date(byAdding: .day, value: -daysToSubtract, to: calendar.startOfDay(for: date))!
-        }
+        // 週の開始日を設定
+        calendar.firstWeekday = userProfile.weekStartsOnMonday ? 2 : 1  // 2=月曜日、1=日曜日
+        
+        let components = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: date)
+        return calendar.date(from: components)!
     }
+    
     // 週の終わりも取得できるようにする
     func getWeekEnd(for date: Date = Date()) -> Date {
-        let calendar = Calendar.current
+        var calendar = Calendar.current
+        
+        // 週の開始日を設定
+        calendar.firstWeekday = userProfile.weekStartsOnMonday ? 2 : 1  // 2=月曜日、1=日曜日
+        
         let weekStart = getWeekStart(for: date)
         return calendar.date(byAdding: .day, value: 6, to: weekStart) ?? date
     }

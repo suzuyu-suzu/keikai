@@ -156,33 +156,78 @@ struct ActivityLineChart: View {
         let data = prepareChartData()
         
         Chart {
-            ForEach(data, id: \.date) { item in
-                LineMark(
-                    x: .value("日付", item.date),
-                    y: .value("数値", item.value)
-                )
-                .foregroundStyle(item.activityType == nil ? Color.purple : colorForActivity(item.activityType!))
-                .symbol(Circle().strokeBorder(lineWidth: 2))
-                .interpolationMethod(.catmullRom)
-            }
-        }
-        .chartXAxis {
-            AxisMarks(values: .automatic) { value in
-                AxisValueLabel {
-                    if let date = value.as(Date.self) {
-                        Text(formatAxisDate(date))
+                    // 各アクティビティタイプごとに分けてグループ化
+                    if let specificType = activityType {
+                        // 特定のタイプが選択されている場合
+                        let typeData = data.filter { $0.activityType == specificType }
+                        ForEach(typeData, id: \.date) { point in
+                            LineMark(
+                                x: .value("日付", point.date),
+                                y: .value("数値", point.value)
+                            )
+                            .foregroundStyle(by: .value("アクティビティ", specificType.rawValue))
+                            .symbol(by: .value("アクティビティ", specificType.rawValue))
+                            .interpolationMethod(.catmullRom)
+                        }
+                    } else {
+                        // すべてのアクティビティを表示する場合
+                        ForEach(dataStore.userProfile.preferredActivityTypes.prefix(3), id: \.self) { type in
+                            let typeData = data.filter { $0.activityType == type }
+                            ForEach(typeData, id: \.date) { point in
+                                LineMark(
+                                    x: .value("日付", point.date),
+                                    y: .value("数値", point.value)
+                                )
+                                .foregroundStyle(by: .value("アクティビティ", type.rawValue))
+                                .symbol(by: .value("アクティビティ", type.rawValue))
+                                .interpolationMethod(.catmullRom)
+                            }
+                        }
                     }
                 }
+                .chartForegroundStyleScale([
+                    dataStore.userProfile.preferredActivityTypes[0].rawValue: colorForActivity(dataStore.userProfile.preferredActivityTypes[0]),
+                    "ランニング": Color.green,
+                    "スクワット": Color.red,
+                    "ウォーキング": Color.blue,
+                    "水泳": Color.cyan,
+                    "サイクリング": Color.orange
+                ])
+                .chartSymbolScale([
+                    dataStore.userProfile.preferredActivityTypes[0].rawValue: Circle().strokeBorder(lineWidth: 2),
+                    "ランニング": Circle().strokeBorder(lineWidth: 2),
+                    "スクワット": Circle().strokeBorder(lineWidth: 2),
+                    "ウォーキング": Circle().strokeBorder(lineWidth: 2),
+                    "水泳": Circle().strokeBorder(lineWidth: 2),
+                    "サイクリング": Circle().strokeBorder(lineWidth: 2)
+                ])
+                .chartXAxis {
+                    AxisMarks(values: .stride(by: .day)) { value in
+                        if let date = value.as(Date.self) {
+                            AxisValueLabel {
+                                Text(formatAxisDate(date))
+                            }
+                            AxisGridLine(stroke: StrokeStyle(dash: [5, 5]))
+                            AxisTick()
+                        }
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks { value in
+                        AxisValueLabel()
+                        AxisGridLine(stroke: StrokeStyle(dash: [5, 5]))
+                    }
+                }
+                .frame(height: 250)
+                .padding()
             }
-        }
-    }
     
     // データ準備
     private func prepareChartData() -> [ChartDataPoint] {
         var result: [ChartDataPoint] = []
         
+        // 表示期間に応じた日付配列を取得
         var dates: [Date]
-        
         switch period {
         case .week:
             dates = getWeekDates()
@@ -193,21 +238,19 @@ struct ActivityLineChart: View {
         }
         
         if let specificType = activityType {
-            // 特定のアクティビティタイプ
+            // 特定のアクティビティタイプが選択されている場合
             for date in dates {
                 let value = totalValueForDate(date, activityType: specificType)
                 result.append(ChartDataPoint(date: date, value: value, activityType: specificType))
             }
         } else {
-            // すべてのアクティビティタイプ
-            for type in Activity.ActivityType.allCases {
-                if dataStore.userProfile.preferredActivityTypes.contains(type) {
-                    for date in dates {
-                        let value = totalValueForDate(date, activityType: type)
-                        if value > 0 {  // 値がある場合のみ追加
-                            result.append(ChartDataPoint(date: date, value: value, activityType: type))
-                        }
-                    }
+            // すべてのアクティビティタイプを表示
+            let activeTypes = dataStore.userProfile.preferredActivityTypes.prefix(3) // 上位3つのアクティビティタイプを使用（見やすさのため）
+            
+            for type in activeTypes {
+                for date in dates {
+                    let value = totalValueForDate(date, activityType: type)
+                    result.append(ChartDataPoint(date: date, value: value, activityType: type))
                 }
             }
         }
@@ -217,17 +260,23 @@ struct ActivityLineChart: View {
     
     // 日付の取得（週）
     private func getWeekDates() -> [Date] {
-        let calendar = Calendar.current
+        var calendar = Calendar.current
+        calendar.firstWeekday = dataStore.userProfile.weekStartsOnMonday ? 2 : 1
+        
+        // 現在の週の開始日を取得
         let weekStart = dataStore.getWeekStart()
         var result: [Date] = []
-    
+        
+        // 週の開始日から7日分の日付を生成
         for day in 0..<7 {
             if let date = calendar.date(byAdding: .day, value: day, to: weekStart) {
-                result.append(date)
+                // 日付の00:00を取得
+                let startOfDay = calendar.startOfDay(for: date)
+                result.append(startOfDay)
             }
         }
-    
-    return result
+        
+        return result
     }
     
     // 日付の取得（月）
@@ -271,9 +320,14 @@ struct ActivityLineChart: View {
     // 特定の日付とアクティビティタイプの合計値
     private func totalValueForDate(_ date: Date, activityType: Activity.ActivityType) -> Double {
         let calendar = Calendar.current
+        let startOfDay = calendar.startOfDay(for: date)
+        let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay)!
         
+        // 指定した日付のアクティビティを厳密にフィルタリング
         let activities = dataStore.activities.filter { activity in
-            activity.type == activityType && calendar.isDate(activity.date, inSameDayAs: date)
+            activity.type == activityType &&
+            activity.date >= startOfDay &&
+            activity.date < endOfDay
         }
         
         if activityType == .walking && period != .year {
@@ -291,7 +345,7 @@ struct ActivityLineChart: View {
         
         switch period {
         case .week:
-            formatter.dateFormat = "E"  // 曜日
+            formatter.dateFormat = "E"  // ロケールに応じた短い曜日表記
         case .month:
             formatter.dateFormat = "d"  // 日付
         case .year:
@@ -318,7 +372,7 @@ struct ActivityLineChart: View {
     }
 }
 
-// グラフデータポイント
+// ChartDataPoint構造体の定義（既存のものをそのまま使用）
 struct ChartDataPoint {
     let date: Date
     let value: Double

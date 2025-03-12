@@ -210,31 +210,40 @@ struct HomeView: View {
         
         // モチベーションメッセージ
         private func motivationalMessage() -> String {
-            let calendar = Calendar.current
-            let weekday = calendar.component(.weekday, from: Date())
-            let weekProgress = Double(weekday - (dataStore.userProfile.weekStartsOnMonday ? 2 : 1)) / 7.0
-            
-            // 週の進捗から適切なメッセージを返す
-            if weekProgress < 0.3 {
-                return "今週も頑張りましょう！新たな目標に向かって！"
-            } else if weekProgress < 0.7 {
-                // 週の中盤
-                let overallProgress = calculateOverallProgress()
-                if overallProgress < 0.5 {
-                    return "目標達成のためには今日も活動的に過ごしましょう！"
-                } else {
-                    return "調子が良いですね！このまま続けましょう！"
-                }
+        let calendar = Calendar.current
+        let today = Date()
+        
+        // 週の開始日と終了日を取得
+        let weekStart = dataStore.getWeekStart(for: today)
+        let weekEnd = dataStore.getWeekEnd(for: today)
+        
+        // 週の始まりからの経過日数を計算
+        let daysSinceWeekStart = calendar.dateComponents([.day], from: weekStart, to: today).day ?? 0
+        
+        // 週の進捗を計算 (0.0 - 1.0)
+        let weekProgress = Double(daysSinceWeekStart) / 7.0
+        
+        // 週の進捗から適切なメッセージを返す
+        if weekProgress < 0.3 {
+            return "今週も頑張りましょう！新たな目標に向かって！"
+        } else if weekProgress < 0.7 {
+            // 週の中盤
+            let overallProgress = calculateOverallProgress()
+            if overallProgress < 0.5 {
+                return "目標達成のためには今日も活動的に過ごしましょう！"
             } else {
-                // 週末
-                let overallProgress = calculateOverallProgress()
-                if overallProgress < 0.7 {
-                    return "週末です。目標達成に向けて頑張りましょう！"
-                } else {
-                    return "素晴らしい一週間でした！目標達成まであと少し！"
-                }
+                return "調子が良いですね！このまま続けましょう！"
+            }
+        } else {
+            // 週末
+            let overallProgress = calculateOverallProgress()
+            if overallProgress < 0.7 {
+                return "週末です。目標達成に向けて頑張りましょう！"
+            } else {
+                return "素晴らしい一週間でした！目標達成まであと少し！"
             }
         }
+    }
         
     
     private func requestHealthKitAuthorization() {
@@ -293,13 +302,13 @@ struct HomeView: View {
     }
     
     private func weekDateRangeString() -> String {
-        let calendar = Calendar.current
         let today = Date()
+        // selectedWeekOffsetを使って基準日を計算
+        let referenceDate = Calendar.current.date(byAdding: .day, value: selectedWeekOffset * 7, to: today) ?? today
         
-        guard let weekStart = calendar.date(byAdding: .day, value: selectedWeekOffset * 7, to: today),
-              let weekEnd = calendar.date(byAdding: .day, value: 6, to: weekStart) else {
-            return ""
-        }
+        // DataStoreの週計算メソッドを使用
+        let weekStart = dataStore.getWeekStart(for: referenceDate)
+        let weekEnd = dataStore.getWeekEnd(for: referenceDate)
         
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "MM/dd"
